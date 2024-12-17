@@ -1,0 +1,38 @@
+from PIL import Image
+import numpy as np
+
+def is_indonesia_or_poland_flag(image_path):
+    # Open the image and convert it to RGB
+    img = Image.open(image_path).convert("RGB")
+    img_array = np.array(img)
+
+    # Get the image dimensions
+    height, width, _ = img_array.shape
+
+    # Split the image into top and bottom halves
+    top_half = img_array[:height // 2, :, :]
+    bottom_half = img_array[height // 2:, :, :]
+
+    # Calculate the average color for both halves
+    top_avg = np.mean(top_half, axis=(0, 1))  # RGB average for top half
+    bottom_avg = np.mean(bottom_half, axis=(0, 1))  # RGB average for bottom half
+
+    # Define thresholds for red and white detection
+    def is_red(color):
+        return color[0] > 150 and color[1] < 100 and color[2] < 100  # High red, low green and blue
+
+    def is_white(color):
+        return color[0] > 200 and color[1] > 200 and color[2] > 200  # High RGB values (white)
+
+    # Decision logic
+    if is_red(top_avg) and is_white(bottom_avg):
+        return "This is the Flag of Indonesia."
+    elif is_white(top_avg) and is_red(bottom_avg):
+        return "This is the Flag of Poland."
+    else:
+        return "This is neither the Flag of Indonesia nor Poland."
+image_path = "C:/Users/mayan/Pictures/indonesia_flag.jpg"
+
+result = is_indonesia_or_poland_flag(image_path)
+print(result)
+
