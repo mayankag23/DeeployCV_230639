@@ -31,7 +31,7 @@ def is_indonesia_or_poland_flag(image_path):
         return "This is the Flag of Poland."
     else:
         return "This is neither the Flag of Indonesia nor Poland."
-image_path = "C:/Users/mayan/Pictures/indonesia_flag.jpg"
+image_path = r"C:\Users\mayan\Downloads\png-transparent-flag-of-indonesia-indonesian-flag-miscellaneous-angle-english-thumbnail.png"
 
 result = is_indonesia_or_poland_flag(image_path)
 print(result)
