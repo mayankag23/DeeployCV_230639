@@ -1,0 +1,94 @@
+import cv2
+import numpy as np
+import os
+import requests
+from PIL import Image
+from io import BytesIO
+
+def load_ssd_model(prototxt_path, model_path):
+    """
+    Load the SSD model for object detection.
+    """
+    if not os.path.exists(prototxt_path):
+        raise FileNotFoundError(f"Prototxt file not found: {prototxt_path}")
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"Model file not found: {model_path}")
+
+    net = cv2.dnn.readNetFromCaffe(prototxt_path, model_path)
+    return net
+
+def detect_flag_with_ssd(image_path_or_url, net, class_labels, confidence_threshold=0.5):
+    """
+    Detect and classify flags using the SSD model.
+    """
+    # Check if the input is a URL
+    if image_path_or_url.startswith("http://") or image_path_or_url.startswith("https://"):
+        # Fetch the image from the URL
+        response = requests.get(image_path_or_url)
+        if response.status_code == 200:
+            image = np.array(Image.open(BytesIO(response.content)))
+        else:
+            raise ValueError(f"Failed to fetch the image from the URL: {image_path_or_url}")
+    else:
+        # Load the image from a local path
+        image = cv2.imread(image_path_or_url)
+        if image is None:
+            raise ValueError(f"Image not found or invalid format: {image_path_or_url}")
+
+    # Get image dimensions
+    h, w = image.shape[:2]
+
+    # Prepare the image for the SSD model
+    blob = cv2.dnn.blobFromImage(image, 0.007843, (300, 300), 127.5)
+    net.setInput(blob)
+    detections = net.forward()
+
+    # Loop through detections
+    for i in range(detections.shape[2]):
+        confidence = detections[0, 0, i, 2]
+
+        # Filter by confidence threshold
+        if confidence > confidence_threshold:
+            class_id = int(detections[0, 0, i, 1])
+            label = class_labels.get(class_id, "Unknown")
+
+            # Extract bounding box
+            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+            (startX, startY, endX, endY) = box.astype("int")
+
+            # Draw the bounding box and label
+            cv2.rectangle(image, (startX, startY), (endX, endY), (0, 255, 0), 2)
+            label_text = f"{label}: {confidence * 100:.2f}%"
+            cv2.putText(image, label_text, (startX, startY - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+            # Check if the detected object is a flag
+            if label.lower() in ["indonesia", "poland"]:
+                return label
+
+    return "Uncertain"
+
+# Paths to the model files
+prototxt_path = r"C:\Users\mayan\Downloads\deploy (1).prototxt"
+model_path = r"C:\Users\mayan\Downloads\mobilenet_iter_73000.caffemodel"
+
+# Load the model
+try:
+    ssd_net = load_ssd_model(prototxt_path, model_path)
+except FileNotFoundError as e:
+    print(e)
+    exit()
+
+# Define class labels (update according to the trained model)
+class_labels = {
+    1: "Poland",
+    2: "Indonesia",
+    # Add more flag categories as needed
+}
+
+# Example usage
+image_url = "https://t4.ftcdn.net/jpg/05/51/73/93/360_F_551739321_PHPKKaqyi7H75FSkiqwVqOUDVg7F8BMG.jpg"  # Replace with a real URL
+try:
+    result = detect_flag_with_ssd(image_url, ssd_net, class_labels)
+    print(f"The flag is: {result}")
+except ValueError as e:
+    print(e)
