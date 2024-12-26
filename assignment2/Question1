@@ -1,0 +1,54 @@
+import cv2
+import torch
+from torchvision import models, transforms
+import numpy as np
+
+# Load YOLOv5 model
+yolo_model = torch.hub.load('ultralytics/yolov5', 'yolov5s')  # 'yolov5s' for small model
+
+# Load SSD model
+ssd_model = models.detection.ssdlite320_mobilenet_v3_large(pretrained=True)
+ssd_model.eval()
+
+# Initialize Video Capture (can use real-time camera or pre-recorded video)
+cap = cv2.VideoCapture(0)  # For real-time camera, use 0. For a video file, use 'video_path'
+
+while True:
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # YOLOv5 Detection
+    yolo_results = yolo_model(frame)  # YOLOv5 inference
+    yolo_frame = frame.copy()
+    for *xyxy, conf, cls in yolo_results.xyxy[0]:  # This is the correct unpacking
+        label = f'{yolo_model.names[int(cls)]} {conf:.2f}'
+        cv2.rectangle(yolo_frame, (int(xyxy[0]), int(xyxy[1])), (int(xyxy[2]), int(xyxy[3])), (255, 0, 0), 2)
+        cv2.putText(yolo_frame, label, (int(xyxy[0]), int(xyxy[1]) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+    # SSD Detection
+    transform = transforms.Compose([transforms.ToTensor()])
+    ssd_input = transform(frame).unsqueeze(0)  # Prepare the frame for SSD
+    with torch.no_grad():
+        predictions = ssd_model(ssd_input)
+
+    ssd_frame = frame.copy()
+    for element in range(len(predictions[0]['boxes'])):
+        box = predictions[0]['boxes'][element].cpu().numpy()
+        score = predictions[0]['scores'][element].cpu().numpy()
+        label = predictions[0]['labels'][element].cpu().numpy()
+        if score > 0.5:  # Filter low-confidence detections
+            cv2.rectangle(ssd_frame, (int(box[0]), int(box[1])), (int(box[2]), int(box[3])), (0, 255, 0), 2)
+            cv2.putText(ssd_frame, f'{label} {score:.2f}', (int(box[0]), int(box[1]) - 10), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5, (0, 255, 0), 2)
+
+    # Display the results
+    cv2.imshow('YOLOv5 Detection', yolo_frame)
+    cv2.imshow('SSD Detection', ssd_frame)
+
+    # Press 'q' to exit
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
